@@ -1,0 +1,478 @@
+###############################################################################
+## JL pseudocode suggestions - 11/11/2023                                     #
+#                                                                             #
+#   - section numbering to align with overview word doc                       #
+#   - 
+###############################################################################
+## TO DO / TO CONSIDER
+#   - what other libraries are needed...?
+#   - should the summary dataframes be in long(tidy) format...?
+#   - might need to add multiple types of sds & mds, because of different
+#     storage durations
+#       - loop within each sds/mds secion, similar to dispatchable Generators
+
+###############################################################################
+## yml config
+#   - filesources/names for
+#       - input data
+#       - capacity assumptions
+#   - merit order for generators
+#   - transferPairs
+#   - storage specs (by storage type)
+#       - calculation method
+#       - fillFirst
+#   - generator specs
+#       - resourceConstrained
+#       - marginal costs
+
+###############################################################################
+## 1. Initialisation
+
+import pandas as pd
+import numpy as np
+
+# Set code controls
+ctrl = set_code_controls()
+
+# Compile model specs
+regionList   = compile_specs_regions()
+transSpecs   = compile_specs_transmission()
+storageSpecs = compile_specs_storage()
+genSpecs     = compile_specs_generators()
+
+# Load data
+    # <<NOTE>> in future versions, these might be passed in 
+mismatch       = load_energy_data(regionList)
+resourceInputs = load_resource_inflows(regionList)
+capacity       = load_supply_capacities(regionList)
+
+# Initialise misc variables
+dataLength  = mismatch.shape(1)
+dispGenList = list(genSpecs.columns) # list of all generators
+resGenList  = list(genSpecs[genSpecs['resourceConstrained'].isin(True)].index)
+                                    # all generators with resource constraints
+
+###############################################################################
+## 2. Split the mismatch time-series
+for reg in regionList['regionTag']
+    
+    splits['surplus-'   + reg] = mismatch['mm-' + reg].clip(upper=0).abs()
+    splits['shortfall-' + reg] = mismatch['mm-' + reg].clip(lower=0)
+    
+    if ctrl.compileEnergyBalance
+        balance = mismatch
+        
+###############################################################################
+## 3. Short duration storage
+
+# define local variables
+storType = 'sds'
+specs = storageSpecs[storType]
+
+for reg in regionList['regionTag']
+    
+    # get mismatch splits
+    demandSeries  = splits['shortfall-' + reg]
+    surplusSeries = splits['surplus-'   + reg]
+   
+    # implement storage charge/discharge cycles
+    demandSeries,surplusSeries, sb = storage_naive(demandSeries, surplusSeries, 
+                                                   specs, dataLength)
+    
+    # update & store results
+    splits['shortfall-' + reg] = demandSeries    
+    splits['surplus-'   + reg] = surplusSeries
+    
+    if ctrl.compileEnergyBalance
+        balance[storType + '-' + reg] += sb['in'] - sb['out']
+        
+    if ctrl.compileStorageBalance
+        storage[storType + '-charge-' + reg] = sb['in']
+        storage[storType + '-disch-'  + reg] = sb['out']
+        storage[storType + '-level-'  + reg] = sb['lvl']
+    
+# delete unneeded variables
+#   - sb
+                    
+###############################################################################
+## 4. Inter-regional transfers
+
+for regA, regB, capAtoB, capBtoA in transSpecs['regA', 'regB', 
+                                               'capAtoB', 'capBtoA']
+    # get mismatch splits
+    surplusA   = splits['surplus-' + regA]
+    surplusB   = splits['surplus-' + regB]
+    shortfallA = splits['shortfall-'  + regA]
+    shortfallB = splits['shortfall-'  + regB]
+    
+    # calculate transfers
+    transferAtoB = min(surplusA, shortfallB, capAtoB)
+    transferBtoA = min(surplusB, shortfallA, capBtoA)
+    
+    # update & store results
+    splits['surplus-'   + regA] -= transferAtoB
+    splits['shortfall-' + regB] -= transferAtoB
+    
+    splits['surplus-'   + regB] -= transferBtoA
+    splits['shortfall-' + regA] -= transferBtoA
+    
+    if ctrl.compileTrans
+        transfers[regA + '-' + regB] = transferAtoB
+        transfers[regB + '-' + regA] = transferBtoA
+
+# delete unneeded variables
+#   - surplusA, surplusB, shortfallA, shortfallB
+#   - transferAtoB, transferBtoA
+                        
+###############################################################################
+## 5. Dispatchable Generators
+
+for reg, method, defaultOrder in regionList['regionTag', 'meritOrderMethod',
+                                            'defaultMeritOrder']
+    
+    # get mismatch splits
+    demandSeries = splits['shortfall-' + reg]
+    
+    # initialise local variables
+    genTracker = pd.DataFrame(np.zeros(demandSeries.size), 
+                              columns= s + '-' + reg for s in dispGenList)
+        # <<??>> does this assignment work, or does it need
+        #           np.zeros(demandSeries.size, len(dispGenList))    
+
+    resTracker = []    
+    for gen in resGenList
+        rt = set_initial_state(specs['initialResourceLvl'], dataLength)
+        resTracker = pd.concat([resTracker, 
+                                rt.add_prefix(gen + '-' + reg + '-')], 
+                               axis=1, verify_integrity=True)
+        
+    # implement merit-order dispatch
+    meritOrder = defaultOrder     # <<NOTE>> placeholder for alternate methods
+    
+    for hour, demand in demandSeries
+    
+        for gen in meritOrder
+        
+            # initialise loop variables
+            supply = 0
+            genTag = gen + '-' + reg
+            specs  = generatorSpecs[gen]
+            
+            if demand > 0
+                # set generation limits
+                capLimit = capacity.loc[hour, gen]
+                
+                if  # this is the first hour in the time-series
+                    rampLimit = capLimit
+                else
+                    priorGen  = genTracker.loc[hour-1, gen]
+                    rampLimit = priorGen + specs['maxRampRate']
+                
+                # apply energy balance constraints
+                supply = min (demand, rampLimit, capLimit)
+                
+            # apply resource supply constraints (as required)
+            if specs['resourceConstrained']
+
+                prevLvl = resTracker.loc[hour-1, gen + reg + '-lvl']
+                inputs  = resourceInputs.loc[hour, genTag]
+                
+                if fillFirst
+                    resourceLimit = prevLvl + inflow - minResourceLvl
+                else
+                    resourceLimit = prevLvl - minResourceLvl
+        
+                supply = min (supply, resourceLimit)
+                newLvl = min(initLvl + inflow - supply, maxResourceLvl)
+                
+    # update & store results        
+                resTracker.loc[hour, genTag + '-in']  = inputs
+                resTracker.loc[hour, genTag + '-out'] = supply
+                resTracker.loc[hour, genTag + '-lvl'] = newLvl
+                                            
+            demand -= supply
+            genTracker(hour, genTag) = supply
+        
+        demandSeries[hour] = demand
+        
+    splits['shortfall-' + reg] = demandSeries
+    
+    if ctrl.compileDispatchSummary or ctrl.generateCosts 
+        genDispatch = pd.concat([genDispatch, genTracker], axis=1, 
+                                verify_integrity=True)
+        
+    if ctrl.compileResource
+        resources = pd.concat([resources, resTracker], axis=1, 
+                                verify_integrity=True)
+
+    if ctrl.compileEnergyBalance
+        balance['dip-' + reg] = - genTracker.sum(axis=1)
+        
+    # capture gas results
+    if ctrl.compileGas 
+        if # ccgt is in the dispGenList
+            genTag = 'ccgt-' + reg
+            
+            gas[genTag + '-gen'] = genTracker['genTag']
+            gas[genTag + '-cap'] = capacity  ['genTag']
+        else
+            gas[genTag + '-gen', genTag + '-cap'] = np.zeros(dataLength)
+        
+# delete unneeded variables
+#   - genTracker, resTracker
+#   - ???
+            
+###############################################################################
+## 6. Medium Duration Storage
+
+# define local variables
+storType = 'mds'
+
+# get specs
+specs = storageSpecs[storType]
+
+for reg in regionList['regionTag']
+    
+    # extract the  mismatch time-series
+    demandSeries  = splits['shortfall-' + reg]
+    surplusSeries = splits['surplus-'   + reg]
+   
+    # implement storage charge/discharge cycles
+    demandSeries, surplusSeries, sb = storage_naive(demandSeries, 
+                                                    surplusSeries, specs)
+    
+    # update & store results
+    splits['shortfall-'  + reg] = demandSeries    
+    splits['surplus-' + reg] = surplusSeries
+    
+    if ctrl.compileEnergyBalance
+        balance[storType + '-' + reg] += sb['in'] - sb['out']
+        
+    if ctrl.compileStorageBalance
+        storage[storType + '-charge-' + reg] = sb['in']
+        storage[storType + '-disch-'  + reg] = sb['out']
+        storage[storType + '-level-'  + reg] = sb['lvl']
+
+# delete unneeded variables
+#   - sb
+#   - demandSeries
+#   - surplusSeries
+                    
+###############################################################################
+## 7. OCGT stuff
+
+for reg in regionList['regionTag']
+  
+    genTag = 'ocgt' + reg
+    
+    firmingDemand = splits['shortfall-' + reg] 
+    
+    if ocgtExogenousCap
+        ocgtCap = 
+        ocgtSupply = ocgtDemand.clip(upper=ocgtCap)
+    else
+        ocgtSupply = ocgtDemand
+        ocgtCap    = # by year, the annual maximum of all firmingDemand values
+
+if ctrl.compileDispatchSummary
+    genDispatch[genTag] = ocgtSupply
+
+if ctrl.compileEnergyBalance
+    balance['firmGen-'   + reg] = - ocgtSupply
+    balance['shortfall-' + reg] = - firmingDemand - ocgtSupply
+    balance['spillage-'  + reg] = splits['surplus-' + reg]
+    balance['shortfall-' + reg] = max(0, ocgtDemand.clip(lower=ocgtCap) - ocgtCap)
+        
+###############################################################################
+## 8. extras
+
+# 8.1 sanity check on results
+if ctrl.checkResults
+    # sum of rows across Balance() should equal zero
+
+# 8.2 compile regional balances
+#    - if generateRegionalBalance, extract the same columns as overall balance,
+#      but region specific
+
+# 8.3 build marginal cost tables
+#    - genDispatch table, merge with strong supply
+#    - copy/convert the regionalBalance values into a binary table [0,1]
+#    - multiply by marginal costs (/10)
+#    - then take the maximum cost for each row
+#    - Qld market dispatch stuff needs their signature
+
+###############################################################################
+###############################################################################
+def set_code_controls()
+    
+    # <<TO DO>> temporary values provided 
+    #               - will eventually compile this from the yml config file
+    ds1 = pd.Series([True, True, True, True], 
+                    index = ['compileEnergyBalance', 'compileStorageBalance', 
+                             'ctrl.compileDispatchSummary', 'compileTransSummary'])
+    ds2 = pd.Series([True, True], 
+                    index = ['ctrl.compileResourceBalance', 'ctrl.compileGasSummary'])
+    ds3 = pd.Series([False, False, False], 
+                    index = ['saveBalance', 'saveStorage', 'saveDispatch'])
+    ds4 = pd.Series([False, False ], 
+                    index = ['saveTrans', 'saveResource'])
+    ds5 = pd.Series([False, False], 
+                    index = ['generateRegionalBalance', 'generateCosts'])
+    ds6 = pd.Series([False, True], 
+                    index = ['ocgtExogenousCap', # check results)
+    ds = pd.concat([ds1, ds2, ds3, ds4, ds5, ds6])
+    # <<>>
+    return ds
+
+###############################################################################
+def compile_specs_regions()
+
+    # <<TO DO>> temporary values provided 
+    #               - will eventually compile this from the yml config file
+    meritOrder = ['Hydro', 'Coal']
+    df = pd.DataFrame(
+            {
+                'regionstorType'  ['1', '2'],
+                'regionName' ['Qld', 'South'],
+                'meritOrderMethod' ['default', 'default'],
+                'defaultMeritOrder' [meritOrder, meritOrder],
+            })
+    # <<>>
+    return df
+
+###############################################################################
+def compile_specs_generation()
+
+    # <<TO DO>> temporary values provided 
+    #   - will eventually compile this from the yml config file
+    #   - need to provide values where "?" is indicated
+    df = pd.DataFrame(
+            {
+                'type' ['coal', 'hydro'],
+                'maxRampRate'  [?, ?],
+                'resourceConstraints'  [False, True],
+                'initialResourceLvl' [None, 100],
+                'maxResourceLvl'     [None,  ?],
+                'FillFirst'  [None, False],
+            })
+    # <<>>
+    return df
+
+###############################################################################
+def compile_specs_storage()
+
+    # <<TO DO>> temporary values provided 
+    #   - will eventually compile this from the yml config file
+    #   - need to provide values where "?" is indicated
+    df = pd.DataFrame(
+            {
+                'type' ['sds', 'mds'],
+                'calcMethod' ['naive', 'naive'],
+                'fillFirst' [False, False],
+                'initialCharge%' [100, 50],
+                'maxChargeLvl'  [?, ?],
+                'minChargeLvl'  [?, ?],
+                'maxChargeRate' [?, ?],
+                'maxDischRate'  [?, ?],
+                'rte'           [90, 50],
+            })
+    # <<>>
+    return df
+
+###############################################################################
+def compile_specs_transmission()
+
+    # <<TO DO>> temporary values provided 
+    #   - will eventually compile this from the yml config file
+    #   - need to provide values where "?" is indicated
+    df = pd.DataFrame(
+            {
+                'regA' '1',
+                'regB' '2',
+                'capAtoB' ?,
+                'capBtoA' ?,
+            })
+    # <<>>
+    return df
+
+###############################################################################
+def load_energy_data(regionList)
+    for reg in regionList['regionstorType']
+        
+        df['demand-'  + reg] = # demand data
+        df['vreGen-'  + reg] = # VRE generation potential
+                                #   - capacity-weighted sum of 
+                                #     all regional PV & wind potential
+                                #     (ignoring sub-regional transmission)
+        # df['mustRun-'  + reg] = # must-run generators output
+                                
+        df['mm-'  + reg] = df['demand-'  + reg] - df['vreGen-'  + reg]                                        
+        # df['mm-'  + reg] -= df['mustRun-'  + reg]
+        
+    return df
+
+###############################################################################
+def load_supply_capacities(regionList)
+    # This will be designed for a specific input file, providing scenarios of 
+    # annual capacity.  
+    # To be converted to the full hourly timeseries, as matches demand/vre/mm.
+    df=[]
+    return df
+
+###############################################################################
+def load_resource_inflows(regionList)
+    # This will be customised to suit the choice of resource-dependent generators.
+    # By default, this will only be hydro, which has monthly scenarios.
+    # All datasets to be converted to the full hourly timeseries, as matches
+    #   demand/vre/mm.
+    df=[]
+    return df
+
+###############################################################################
+def set_initial_state(initLvl, dataLength) 
+    df['lvl'] = [initLvl, np.zeros(dataLength)]
+    df['in' ] = np.zeros(dataLength + 1)
+    df['out'] = np.zeros(dataLength + 1)
+        
+    return df
+        
+###############################################################################
+def storage_naive(demandSeries, surplusSeries, specs, dataLength)
+                         
+    # initialise local variables
+    initialChargeLvl = specs.initialCharge% * specs.maxChargeLvl
+    stor = set_initial_state(initialChargeLvl, dataLength)
+        
+    # time-sequential charge/discharge balance
+    for hour, surplus in surplusSeries(1end)
+        
+        # initialise loop variables
+        charge = 0; discharge = 0
+        priorChargeLvl = levelSeries.loc[hour-1]
+        
+        # charge during hours of supply surplus
+        if surplus > 0
+            
+            if priorChargeLvl < specs.maxChargeLvl
+                charge = min( specs.maxChargeLvl- priorChargeLvl, 
+                              specs.maxChargeRate )
+            
+                stor.loc[hour,'in']  = charge
+                surplusSeries[hour] -= charge / specs.rte
+                                
+        # discharge during hours of supply shortfall
+        elif demandSeries[hour] > 0     
+            
+            if priorChargeLvl > specs.minChargeLvl
+                discharge = min( priorChargeLvl - specs.minChargeLvl, 
+                                 specs.maxDischRate, demandSeries[hour] )
+                
+                stor.loc[hour,'out'] = discharge
+                demandSeries[hour]  -= discharge
+                
+        # update the charge level timeseries
+        stor.loc[hour, 'lvl'] = priorChargeLvl + charge - discharge
+        
+    return (demandSeries, surplusSeries, stor) 
+    
+
