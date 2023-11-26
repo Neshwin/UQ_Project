@@ -1,0 +1,68 @@
+controls:
+  compileEnergyBalance: true
+  compileStorageBalance: true
+  compileDispatchSummary: true
+  compileTransSummary: true
+  ctrl.compileResourceBalance: true
+  ctrl.compileGasSummary: true
+  saveBalance: false
+  saveStorage: false
+  saveDispatch: false
+  saveTrans: false
+  saveResource: false
+  generateRegionalBalance: false
+  generateCosts: false
+  ocgtExogenousCap: false
+  checkResults: false
+
+region_specs:
+  - regionstorType: '1'
+    regionName: 'Qld'
+    meritOrderMethod: 'default'
+    defaultMeritOrder: ['Hydro', 'Coal']
+  - regionstorType: '2'
+    regionName: 'South'
+    meritOrderMethod: 'default'
+    defaultMeritOrder: ['Hydro', 'Coal']
+
+transmission_specs:
+  - regA: '1'
+    regB: '2'
+    capAtoB: 100
+    capBtoA: 100
+
+storage_specs:
+  - type: 'sds'
+    calcMethod: 'naive'
+    fillFirst: false
+    initialCharge%: 100
+    maxChargeLvl: '1000'  # Replace with the actual max charge level
+    minChargeLvl: '100'   # Replace with the actual min charge level
+    maxChargeRate: '50'   # Replace with the actual max charge rate
+    maxDischRate: '50'    # Replace with the actual max discharge rate
+    rte: 90
+
+  - type: 'mds'
+    calcMethod: 'naive'
+    fillFirst: false
+    initialCharge%: 50
+    maxChargeLvl: '500'   # Replace with the actual max charge level
+    minChargeLvl: '50'    # Replace with the actual min charge level
+    maxChargeRate: '25'   # Replace with the actual max charge rate
+    maxDischRate: '25'    # Replace with the actual max discharge rate
+    rte: 50
+
+generation_specs:
+  - type: 'coal'
+    maxRampRate: '10'      # Replace with the actual max ramp rate
+    resourceConstraints: false
+    initialResourceLvl: '50'  # Replace with the actual initial resource level
+    maxResourceLvl: '1000'   # Replace with the actual max resource level
+    FillFirst: false
+
+  - type: 'hydro'
+    maxRampRate: '5'       # Replace with the actual max ramp rate
+    resourceConstraints: true
+    initialResourceLvl: '100' # Replace with the actual initial resource level
+    maxResourceLvl: '500'   # Replace with the actual max resource level
+    FillFirst: false
