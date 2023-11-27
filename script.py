@@ -41,34 +41,51 @@ def compile_specs_generation(yaml_file_path):
     
     return generation_specs
 
+# def load_csv_data(yaml_file_path):
+#     with open(yaml_file_path, 'r', encoding='utf-8') as file:
+#         yaml_data = yaml.safe_load(file)
+
+#     csv_file_path = yaml_data.get('csv_file_path', '')  # Get the path to the CSV file
+
+#     if csv_file_path:
+#         df = pd.read_csv(csv_file_path, index_col=0)
+#         return df
+#     else:
+#         return None
+    
 def load_csv_data(yaml_file_path):
     with open(yaml_file_path, 'r', encoding='utf-8') as file:
         yaml_data = yaml.safe_load(file)
 
-    csv_file_path = yaml_data.get('csv_file_path', '')  # Get the path to the CSV file
+    csv_files = yaml_data.get('csv_files', [])  # Get the list of CSV files
 
-    if csv_file_path:
-        df = pd.read_csv(csv_file_path, index_col=0)
-        return df
-    else:
-        return None
-    
+    dfs = {}
+    for csv_file in csv_files:
+        name = csv_file.get('name', '')
+        path = csv_file.get('path', '')
 
-def load_energy_data(regionList):
+        if name and path:
+            df = pd.read_csv(path, index_col=0)
+            dfs[name] = df
+
+    return dfs
+def load_energy_data(regionList,load_data):
+    df = pd.DataFrame()
     for reg in regionList['regionstorType']:
         print(reg)
-        
-    #     df['demand-'  + reg] = # demand data
-    #     df['vreGen-'  + reg] = # VRE generation potential
-    #                             #   - capacity-weighted sum of 
-    #                             #     all regional PV & wind potential
-    #                             #     (ignoring sub-regional transmission)
-    #     # df['mustRun-'  + reg] = # must-run generators output
-                                
-    #     df['mm-'  + reg] = df['demand-'  + reg] - df['vreGen-'  + reg]                                        
-    #     # df['mm-'  + reg] -= df['mustRun-'  + reg]
-        
-    # return df
+        # df = pd.DataFrame()
+        df['demand-'  + reg]=load_data['load_data'][reg]
+        print(len(df))
+        generation = pd.Series(0, index=load_data['profiles'].index)
+        # print(len(generation))
+        for carrier in load_data['VRE'].index:
+            print(carrier)
+            generation+=load_data['profiles'][carrier]*load_data['VRE'][reg][carrier]
+        df['vreGen-'  + reg] = generation     
+        df['mm-'  + reg] = df['demand-'  + reg] - df['vreGen-'  + reg]
+        # print(len(df))
+                        
+    return df
 # Replace 'your_config_file.yaml' with the actual path to your YAML config file
 yaml_file_path = 'config.yaml'
 load_data = load_csv_data(yaml_file_path)

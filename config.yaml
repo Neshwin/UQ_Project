@@ -67,4 +67,11 @@ generation_specs:
     maxResourceLvl: '500'   # Replace with the actual max resource level
     FillFirst: false
 
-csv_file_path: 'load_data.csv'
+csv_files:
+  - name: 'load_data'
+    path: 'load_data.csv'  # Replace with the actual path to your CSV file
+
+  - name: 'profiles'
+    path: 'profiles.csv'  # Replace with the actual path to your CSV file
+  - name: 'VRE'
+    path: 'gen_info.csv'  # Replace with the actual path to your CSV file
