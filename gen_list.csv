@@ -1,0 +1,9 @@
+﻿name,Capacity (GW),carrier,dispatch_order,region,ramp_rate,generation_limit
+Coal1,20,coal,2,region1,50,FALSE
+Hydro1,0.5,hydro,1,region1,100,TRUE
+Bio1,1,coal,3,region1,50,FALSE
+CCGT1,4,gas,4,region1,100,FALSE
+Coal2,20,coal,2,region2,50,FALSE
+Hydro2,5,hydro,1,region2,100,TRUE
+Bio2,1,coal,3,region2,50,FALSE
+CCGT2,8,gas,4,region2,100,FALSE

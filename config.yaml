@@ -26,30 +26,30 @@ region_specs:
     defaultMeritOrder: ['Hydro', 'Coal']
 
 transmission_specs:
-  - regA: '1'
-    regB: '2'
-    capAtoB: 100
-    capBtoA: 100
+  - sln: '1'
+    from: 'region1'
+    to: 'region2'
+    cap: 5
 
 storage_specs:
   - type: 'sds'
     calcMethod: 'naive'
     fillFirst: false
-    initialCharge%: 100
-    maxChargeLvl: '1000'  # Replace with the actual max charge level
-    minChargeLvl: '100'   # Replace with the actual min charge level
-    maxChargeRate: '50'   # Replace with the actual max charge rate
-    maxDischRate: '50'    # Replace with the actual max discharge rate
+    initialCharge%: 50
+    maxChargeLvl: '100'  # Replace with the actual max charge level
+    minChargeLvl: '10'   # Replace with the actual min charge level
+    maxChargeRate: '25'   # Replace with the actual max charge rate
+    maxDischRate: '25'    # Replace with the actual max discharge rate
     rte: 90
 
   - type: 'mds'
     calcMethod: 'naive'
     fillFirst: false
     initialCharge%: 50
-    maxChargeLvl: '500'   # Replace with the actual max charge level
-    minChargeLvl: '50'    # Replace with the actual min charge level
-    maxChargeRate: '25'   # Replace with the actual max charge rate
-    maxDischRate: '25'    # Replace with the actual max discharge rate
+    maxChargeLvl: 100   # Replace with the actual max charge level
+    minChargeLvl: 10    # Replace with the actual min charge level
+    maxChargeRate: 25   # Replace with the actual max charge rate
+    maxDischRate: 25    # Replace with the actual max discharge rate
     rte: 50
 
 generation_specs:
